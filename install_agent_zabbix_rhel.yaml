@@ -1,0 +1,87 @@
+- hosts: rhel-prd
+  tasks:
+
+  - name: Update nos repositórios
+    shell: sudo yum update
+
+  - name: Registro do nome da maquina
+    shell: hostname
+    register: hname
+
+  - name: Registro do nome do usuário
+    shell: whoami
+    register: userlinux
+
+  - name: Registro de IP
+    shell: hostname -I | awk '{print $1}'
+    register: hip
+
+  - name: Baixando biblioteca Zabbix-Agent
+    shell: sudo wget http://repo.zabbix.com/zabbix/5.0/rhel/7/x86_64/zabbix-agent-5.0.0-1.el7.x86_64.rpm
+
+  - name: Instalando RPM
+    shell: sudo rpm -Uvh zabbix-agent-5.0.0-1.el7.x86_64.rpm
+
+  - name: Update nos repositórios
+    shell: sudo yum update
+
+  - name: Instalando Zabbix Agent
+    shell: sudo yum install -y zabbix-agent
+
+  - name: Mudando Permissão diretorio Zabbix
+    shell: sudo chmod 777 -R /etc/zabbix    
+
+  - name: Backup Conf Antigo
+    shell: sudo mv /etc/zabbix/zabbix_agentd.conf /etc/zabbix/zabbix_agentd.conf.bkp
+
+  - name: Copiar zabbix-agent-conf
+    copy: src=/home/emerson/playbook_ansible/config_prd/zabbix_agentd.conf dest=/etc/zabbix/zabbix_agentd.conf
+
+  - name: adicionado nome do host
+    shell: sudo sed -i "s/Hostname=zabbix/Hostname="{{ hname.stdout }}"/g" /etc/zabbix/zabbix_agentd.conf   
+
+  - name: Ativando script de inicialização
+    shell: sudo systemctl enable zabbix-agent
+
+  - name: Iniciando Zabbix Agent
+    shell: sudo systemctl restart zabbix-agent
+
+  - name: Status Zabbix Agent
+    shell: sudo systemctl status zabbix-agent
+
+  - name: Mudando Permissão diretorio Zabbix
+    shell: sudo chmod 644 -R /etc/zabbix
+
+  - name: Status Zabbix Agent
+    shell: sudo systemctl status zabbix-agent
+    
+  - name: Copiar file.sh
+    copy: src=/home/emerson/playbook_ansible/create-host-zabbix.sh dest=/home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh
+
+  - name: inserindo hostname no file.sh
+    shell: sudo sed -i "s/insira_o_hostname/{{ hname.stdout }}/g" /home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh
+
+  - name: inserindo IP no file.sh
+    shell: sudo sed -i "s/insira_o_ip/{{ hip.stdout }}/g" /home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh      
+
+  - name: atribuindo função de execução file.sh
+    shell: sudo chmod +x /home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh    
+
+  - name: copiando file.sh para localhost
+    fetch:
+      src: /home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh
+      dest: /home/emerson/playbook_ansible/create-host-prd/{{ hname.stdout }}_create-host-zabbix.sh
+      flat: yes    
+
+  - name: deletando file.sh
+    shell: sudo rm -f /home/{{ userlinux.stdout }}/{{ hname.stdout }}_create-host-zabbix.sh
+
+- hosts: localhost
+  tasks:
+
+  - name: Criando host no Zabbix
+    shell: 'cd /home/emerson/playbook_ansible/create-host-prd/ && parallel -j0 bash ::: *.sh'
+
+  - name: Deletando file.sh
+    shell: rm -f /home/emerson/playbook_ansible/create-host-prd/*.sh  
+
