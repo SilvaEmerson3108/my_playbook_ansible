@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # 1. set connection details
-url=https://zabbix.qa.dpsp.io/api_jsonrpc.php
-user=Admin
-password='zabbix'
+url=https://your_zabbix_url/api_jsonrpc.php
+user=Your-User
+password='Your_Passwd'
 
 # 2. get authorization token
 auth=$(curl -s -X POST \
